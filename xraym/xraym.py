@@ -50,7 +50,7 @@ class xraym(BHunters):
 
         try:
             try:
-                output = subprocess.run(["./xray/xray","ws","--basic-crawler",url,"--json-output",outputfile],capture_output=True,text=True,timeout=7200)  
+                output = subprocess.run(["./xray/xray","ws","--basic-crawler",url,"--json-output",outputfile],capture_output=True,text=True,timeout=7200, cwd='/')  
             except subprocess.TimeoutExpired:
                 self.log.warning(f"Xray process timed out for URL: {url}")
             if os.path.exists(outputfile):
@@ -73,7 +73,7 @@ class xraym(BHunters):
         
     def process(self, task: Task) -> None:
         source = task.payload["source"]
-        url =task.payload["subdomain"]
+        url =task.payload["data"]
         # if source == "producer":
         #     url = task.payload_persistent["domain"]
         # else:
@@ -100,8 +100,14 @@ class xraym(BHunters):
                     if item["plugin"]:
                         output.append(f"plugin: {item['plugin']}")
                     discorddata.append(", ".join(output))
-
-                self.send_discord_webhook(f"{self.identity} Results for {domain}","\n".join(discorddata),"main")
+                discorddata="\n".join(discorddata)
+                
+                max_length = 4000
+                discorddata_chunks = [discorddata[i:i + max_length] for i in range(0, len(discorddata), max_length)]
+                
+                for idx, chunk in enumerate(discorddata_chunks):
+                    title = f"{self.identity} Results for {domain} (Part {idx + 1})" if len(discorddata_chunks) > 1 else f"{self.identity} Results for {domain}"
+                    self.send_discord_webhook(title, chunk, "main")
                 if self.db.client.is_primary:
                     update_result =collection.update_one({"Domain": domain}, {"$push": {f"Vulns.Xray": {"$each": xraydata}}})
 
