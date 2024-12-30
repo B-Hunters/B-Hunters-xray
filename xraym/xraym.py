@@ -7,6 +7,7 @@ from b_hunters.bhunter import BHunters
 from karton.core import Task
 import re
 import os
+from bson.objectid import ObjectId
 
 def parse_xray(file_path):
     with open(file_path, "r") as file:
@@ -83,11 +84,13 @@ class xraym(BHunters):
         domain = re.sub(r'^https?://', '', url)
         domain = domain.rstrip('/')
         self.log.info(domain)
-
+        self.scanid=task.payload_persistent["scan_id"]
+        report_id=task.payload_persistent["report_id"]
         self.update_task_status(domain,"Started")
         try:
             result=self.scan(url)
-            collection=self.db["domains"]
+            self.waitformongo()
+            collection=self.db["reports"]
             if result !=[]:
                 xraydata= json.loads(result)
                 discorddata=[]
@@ -109,7 +112,7 @@ class xraym(BHunters):
                     title = f"{self.identity} Results for {domain} (Part {idx + 1})" if len(discorddata_chunks) > 1 else f"{self.identity} Results for {domain}"
                     self.send_discord_webhook(title, chunk, "main")
                 if self.db.client.is_primary:
-                    update_result =collection.update_one({"Domain": domain}, {"$push": {f"Vulns.Xray": {"$each": xraydata}}})
+                    update_result =collection.update_one({"_id": ObjectId(report_id)}, {"$push": {f"Vulns.Xray": {"$each": xraydata}}})
 
                     if update_result.modified_count == 0:
                         self.log.warning(f"Update failed for domain {domain}. Document not found or no changes made.")
