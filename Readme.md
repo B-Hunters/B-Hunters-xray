@@ -25,7 +25,7 @@ docker compose up -d
 # 2. **Docker Image**
 You can also run using docker image
 ```bash
-docker run -d  -e deepscan=False -e max_threads=400 -v $(pwd)/b-hunters.ini:/etc/b-hunters/b-hunters.ini bormaa/b-hunters-dirsearch:v1.0
+docker run -d -v $(pwd)/b-hunters.ini:/etc/b-hunters/b-hunters.ini bormaa/b-hunters-xray:latest
 ```
 
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/bormaa)
