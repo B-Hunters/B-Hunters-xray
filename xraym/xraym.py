@@ -7,6 +7,7 @@ from b_hunters.bhunter import BHunters
 from karton.core import Task
 import re
 import os
+import yaml
 from bson.objectid import ObjectId
 
 def parse_xray(file_path):
@@ -43,7 +44,25 @@ class xraym(BHunters):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-    def xraycommand(self,url):
+    def xray_config(self,headers):
+        """The xray configuration with the session headers in it.
+
+        Xray has no command line option for request headers: they live
+        in the configuration file, under ``http.headers``.  The worker
+        writes its own copy of the configuration to a scratch file and
+        hands that to xray.
+        """
+        with open(os.getenv("XRAY_CONFIG","/config.yaml"),"r") as handle:
+            config = yaml.safe_load(handle)
+        http = config.get("http") or {}
+        http["headers"] = dict(http.get("headers") or {})
+        http["headers"].update(headers)
+        config["http"] = http
+        path = self.generate_random_filename()+".yaml"
+        with open(path,"w") as handle:
+            yaml.safe_dump(config,handle,allow_unicode=True)
+        return path
+    def xraycommand(self,url,headers):
         result=[]
         result403=[]
         newurls=[]
@@ -51,7 +70,13 @@ class xraym(BHunters):
 
         try:
             try:
-                output = subprocess.run(["./xray/xray","ws","--basic-crawler",url,"--json-output",outputfile],capture_output=True,text=True,timeout=7200, cwd='/')  
+                config=self.xray_config(headers)
+                try:
+                    output = subprocess.run(["./xray/xray","--config",config,"ws","--basic-crawler",url,"--json-output",outputfile],capture_output=True,text=True,timeout=7200, cwd='/')
+                finally:
+                    # The scratch configuration holds the session of the
+                    # target, so it does not stay on the disk.
+                    os.remove(config)
             except subprocess.TimeoutExpired:
                 self.log.warning(f"Xray process timed out for URL: {url}")
             if os.path.exists(outputfile):
@@ -68,8 +93,8 @@ class xraym(BHunters):
 
         return result
                 
-    def scan(self,url):        
-        result=self.xraycommand(url)
+    def scan(self,url,headers):
+        result=self.xraycommand(url,headers)
         return result
         
     def process(self, task: Task) -> None:
@@ -88,7 +113,8 @@ class xraym(BHunters):
         report_id=task.payload_persistent["report_id"]
         self.update_task_status(domain,"Started")
         try:
-            result=self.scan(url)
+            headers=self.auth_headers(task)
+            result=self.scan(url,headers)
             self.waitformongo()
             collection=self.db["reports"]
             if result !=[]:
