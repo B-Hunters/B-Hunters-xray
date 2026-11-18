@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 RUN apt update
 RUN apt install libpcap0.8-dev libuv1-dev -y && apt clean && rm -rf /var/lib/apt/lists/*
 # The shared class is built from this repository, not from the published
